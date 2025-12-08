@@ -1,0 +1,409 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// AUTH MODELS
+// ============================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  
+  // Profile
+  timezone      String    @default("UTC")
+  
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  contacts      Contact[]
+  emails        Email[]
+  meetings      Meeting[]
+  meetingTypes  MeetingType[]
+  availability  Availability[]
+  blockedTimes  BlockedTime[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================
+// CONTACT & RELATIONSHIP MODELS
+// ============================================
+
+model Contact {
+  id              String   @id @default(cuid())
+  userId          String
+  
+  // Basic Info
+  email           String
+  name            String?
+  company         String?
+  title           String?
+  avatar          String?
+  
+  // Relationship Intelligence
+  healthScore     Int      @default(50)  // 0-100
+  lastContactAt   DateTime?
+  firstContactAt  DateTime?
+  totalEmails     Int      @default(0)
+  totalMeetings   Int      @default(0)
+  avgResponseTime Int?     // in minutes
+  
+  // Classification
+  type            ContactType @default(UNKNOWN)
+  status          ContactStatus @default(ACTIVE)
+  tags            String[]
+  
+  // Notes
+  notes           String?  @db.Text
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emails          Email[]
+  meetings        Meeting[]
+  interactions    Interaction[]
+  
+  @@unique([userId, email])
+  @@index([userId])
+  @@index([healthScore])
+  @@index([lastContactAt])
+}
+
+enum ContactType {
+  PROSPECT
+  CUSTOMER
+  PARTNER
+  INVESTOR
+  CANDIDATE
+  VENDOR
+  UNKNOWN
+}
+
+enum ContactStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+model Interaction {
+  id              String   @id @default(cuid())
+  contactId       String
+  
+  // Interaction Details
+  type            InteractionType
+  direction       Direction
+  summary         String?
+  
+  // Reference IDs
+  emailId         String?
+  meetingId       String?
+  
+  // Timestamp
+  occurredAt      DateTime
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  @@index([contactId])
+  @@index([occurredAt])
+}
+
+enum InteractionType {
+  EMAIL_SENT
+  EMAIL_RECEIVED
+  MEETING_SCHEDULED
+  MEETING_COMPLETED
+  MEETING_CANCELLED
+  NOTE_ADDED
+}
+
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+
+// ============================================
+// EMAIL MODELS (Gmail Integration)
+// ============================================
+
+model Email {
+  id              String   @id @default(cuid())
+  userId          String
+  contactId       String?
+  
+  // Gmail Data
+  gmailId         String
+  threadId        String
+  
+  // Email Content
+  fromEmail       String
+  fromName        String?
+  toEmails        String[]
+  ccEmails        String[]
+  subject         String
+  snippet         String?
+  body            String?  @db.Text
+  bodyHtml        String?  @db.Text
+  
+  // Metadata
+  date            DateTime
+  isRead          Boolean  @default(false)
+  isStarred       Boolean  @default(false)
+  isArchived      Boolean  @default(false)
+  labels          String[]
+  
+  // AI Generated
+  summary         String?  @db.Text
+  sentiment       Sentiment?
+  actionRequired  Boolean  @default(false)
+  
+  // Classification
+  direction       Direction
+  category        EmailCategory @default(OTHER)
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact         Contact? @relation(fields: [contactId], references: [id])
+  
+  @@unique([gmailId, userId])
+  @@index([userId])
+  @@index([contactId])
+  @@index([date])
+  @@index([actionRequired])
+  @@index([category])
+}
+
+enum EmailCategory {
+  NEEDS_RESPONSE    // They emailed, awaiting your reply
+  AWAITING_REPLY    // You emailed, awaiting their reply
+  FYI               // Informational, no action needed
+  MEETING_RELATED   // Meeting invites, confirmations
+  AUTOMATED         // Newsletters, notifications
+  OTHER
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  URGENT
+}
+
+// ============================================
+// CALENDAR & SCHEDULING MODELS (Native)
+// ============================================
+
+model MeetingType {
+  id              String   @id @default(cuid())
+  userId          String
+  
+  // Basic Info
+  name            String          // "Quick Chat", "Discovery Call", etc.
+  slug            String          // URL slug: /meet/nikhil/quick-chat
+  description     String?
+  
+  // Duration
+  duration        Int             // in minutes (15, 30, 45, 60)
+  
+  // Scheduling Settings
+  bufferBefore    Int     @default(0)   // minutes before meeting
+  bufferAfter     Int     @default(0)   // minutes after meeting
+  minNotice       Int     @default(60)  // minimum scheduling notice (minutes)
+  maxAdvance      Int     @default(60)  // max days in advance (days)
+  
+  // Availability
+  useCustomAvailability Boolean @default(false)
+  customAvailability Json?   // Override default availability
+  
+  // Booking Questions
+  questions       Json?           // Custom questions for booker
+  
+  // Settings
+  isActive        Boolean @default(true)
+  requiresConfirmation Boolean @default(false)
+  
+  // Location
+  locationType    LocationType @default(VIDEO)
+  locationValue   String?      // Zoom link, address, etc.
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meetings        Meeting[]
+  
+  @@unique([userId, slug])
+  @@index([userId])
+}
+
+enum LocationType {
+  VIDEO           // Generate video link
+  PHONE           // Phone call
+  IN_PERSON       // Physical location
+  CUSTOM          // Custom location text
+}
+
+model Availability {
+  id              String   @id @default(cuid())
+  userId          String
+  
+  // Day of week (0 = Sunday, 1 = Monday, etc.)
+  dayOfWeek       Int
+  
+  // Time slots (in minutes from midnight)
+  startTime       Int      // e.g., 540 = 9:00 AM
+  endTime         Int      // e.g., 1020 = 5:00 PM
+  
+  // Settings
+  isEnabled       Boolean  @default(true)
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+}
+
+model Meeting {
+  id              String   @id @default(cuid())
+  userId          String
+  contactId       String?
+  meetingTypeId   String?
+  
+  // Meeting Details
+  title           String
+  description     String?  @db.Text
+  
+  // Time
+  startTime       DateTime
+  endTime         DateTime
+  timezone        String   @default("UTC")
+  
+  // Location
+  locationType    LocationType @default(VIDEO)
+  locationValue   String?
+  meetingLink     String?      // Video conference link
+  
+  // Attendees
+  attendeeEmail   String?
+  attendeeName    String?
+  
+  // Booking Info (if booked via scheduling link)
+  bookedAt        DateTime?
+  bookingAnswers  Json?        // Answers to booking questions
+  
+  // Status
+  status          MeetingStatus @default(SCHEDULED)
+  
+  // Reminders
+  reminderSent    Boolean  @default(false)
+  
+  // AI Generated
+  prepSummary     String?  @db.Text  // AI meeting prep summary
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact         Contact? @relation(fields: [contactId], references: [id])
+  meetingType     MeetingType? @relation(fields: [meetingTypeId], references: [id])
+  
+  @@index([userId])
+  @@index([contactId])
+  @@index([startTime])
+  @@index([status])
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+// ============================================
+// BLOCKED TIME (for calendar)
+// ============================================
+
+model BlockedTime {
+  id              String   @id @default(cuid())
+  userId          String
+  
+  // Time
+  startTime       DateTime
+  endTime         DateTime
+  
+  // Info
+  title           String?
+  isAllDay        Boolean  @default(false)
+  isRecurring     Boolean  @default(false)
+  recurringRule   String?  // RRULE string for recurring blocks
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([startTime])
+}
