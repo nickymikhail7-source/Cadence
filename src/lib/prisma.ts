@@ -7,12 +7,13 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient(): PrismaClient {
-    const connectionString = process.env.POSTGRES_PRISMA_URL
-        ?? process.env.DATABASE_URL
+    // Use DATABASE_URL from Vercel Postgres
+    const connectionString = process.env.DATABASE_URL
         ?? process.env.POSTGRES_URL
+        ?? process.env.POSTGRES_PRISMA_URL
 
     if (!connectionString) {
-        throw new Error('Database URL not configured. Please set POSTGRES_PRISMA_URL or DATABASE_URL.')
+        throw new Error('Database URL not configured. Set DATABASE_URL environment variable.')
     }
 
     const pool = new Pool({ connectionString })
@@ -20,7 +21,7 @@ function createPrismaClient(): PrismaClient {
     return new PrismaClient({ adapter })
 }
 
-// Lazy initialization to avoid build-time errors
+// Lazy initialization for build safety
 let _prisma: PrismaClient | null = null
 
 export function getPrisma(): PrismaClient {
@@ -33,9 +34,9 @@ export function getPrisma(): PrismaClient {
     return _prisma
 }
 
-// For backwards compatibility, but will throw during build if used at module level
+// Proxy for backwards compatibility
 export const prisma = new Proxy({} as PrismaClient, {
-    get(target, prop) {
+    get(_, prop) {
         return getPrisma()[prop as keyof PrismaClient]
     }
 })
