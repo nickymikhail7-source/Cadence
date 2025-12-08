@@ -26,16 +26,9 @@ export async function POST(
         }
 
         // Get access token
-        const account = await prisma.account.findFirst({
-            where: { userId: session.user.id, provider: 'google' },
-        })
-
-        if (!account?.access_token) {
-            return NextResponse.json({ error: 'No Google account linked' }, { status: 400 })
-        }
-
-        // Archive in Gmail
-        const gmail = getGmailClient(account.access_token)
+        const { getValidAccessToken } = await import('@/lib/google')
+        const accessToken = await getValidAccessToken(session.user.id)
+        const gmail = getGmailClient(accessToken)
         await archiveEmail(gmail, email.gmailId)
 
         // Update local record

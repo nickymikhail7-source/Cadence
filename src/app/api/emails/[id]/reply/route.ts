@@ -32,16 +32,9 @@ export async function POST(
         }
 
         // Get access token
-        const account = await prisma.account.findFirst({
-            where: { userId: session.user.id, provider: 'google' },
-        })
-
-        if (!account?.access_token) {
-            return NextResponse.json({ error: 'No Google account linked' }, { status: 400 })
-        }
-
-        // Send reply via Gmail
-        const gmail = getGmailClient(account.access_token)
+        const { getValidAccessToken } = await import('@/lib/google')
+        const accessToken = await getValidAccessToken(session.user.id)
+        const gmail = getGmailClient(accessToken)
         const sentId = await sendEmail(gmail, {
             to: email.fromEmail,
             subject: email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`,

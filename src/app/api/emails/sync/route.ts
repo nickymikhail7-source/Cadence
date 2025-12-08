@@ -11,16 +11,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        // Get access token from account
-        const account = await prisma.account.findFirst({
-            where: { userId: session.user.id, provider: 'google' },
-        })
-
-        if (!account?.access_token) {
-            return NextResponse.json({ error: 'No Google account linked' }, { status: 400 })
+        // Get valid access token (refreshes if needed)
+        const { getValidAccessToken } = await import('@/lib/google')
+        let accessToken: string
+        try {
+            accessToken = await getValidAccessToken(session.user.id)
+        } catch (error) {
+            console.error('Token error:', error)
+            return NextResponse.json({ error: 'Authentication failed. Please reconnect Gmail.' }, { status: 401 })
         }
 
-        const gmail = getGmailClient(account.access_token)
+        const gmail = getGmailClient(accessToken)
         const userEmail = session.user.email!
 
         // Fetch recent emails
