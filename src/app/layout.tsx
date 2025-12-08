@@ -1,21 +1,22 @@
-import type { Metadata } from "next"
-import "./globals.css"
+import './globals.css'
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: "Cadence — Never miss a beat",
-  description: "AI-powered External Relationship Intelligence platform for B2B teams",
+  title: 'Cadence',
+  description: 'AI Relationship Intelligence',
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
     <html lang="en">
-      <body className="antialiased">
-        {children}
-      </body>
+      <body className={inter.className}>{children}</body>
     </html>
   )
 }
