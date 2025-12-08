@@ -57,6 +57,12 @@ const config: Config = {
                 // Borders
                 'border-subtle': '#E5E5E5',
                 'border-default': '#D4D4D4',
+
+                // Specific brand colors
+                cobalt: {
+                    DEFAULT: '#2563EB',
+                    glow: '#60A5FA',
+                },
             },
             fontFamily: {
                 sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
@@ -77,14 +83,20 @@ const config: Config = {
             animation: {
                 'fade-in': 'fadeIn 100ms ease-out',
                 'slide-up': 'slideUp 100ms ease-out',
+                'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
                 'accordion-down': 'accordion-down 0.2s ease-out',
                 'accordion-up': 'accordion-up 0.2s ease-out',
                 'gradient-xy': 'gradient-xy 15s ease infinite',
+                'blob': 'blob 7s infinite',
             },
             keyframes: {
                 fadeIn: {
                     '0%': { opacity: '0' },
                     '100%': { opacity: '1' },
+                },
+                fadeInUp: {
+                    '0%': { opacity: '0', transform: 'translateY(10px)' },
+                    '100%': { opacity: '1', transform: 'translateY(0)' },
                 },
                 slideUp: {
                     '0%': { opacity: '0', transform: 'translateY(4px)' },
@@ -107,6 +119,12 @@ const config: Config = {
                         'background-size': '200% 200%',
                         'background-position': 'right center'
                     }
+                },
+                blob: {
+                    '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                    '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                    '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                    '100%': { transform: 'translate(0px, 0px) scale(1)' },
                 },
             },
         },
