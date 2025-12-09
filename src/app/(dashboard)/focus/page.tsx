@@ -12,24 +12,22 @@ export default async function FocusPage() {
         redirect('/login')
     }
 
-    // 2. Fetch Priority Email
+    // 2. Fetch Priority Email (FIFO - Oldest First)
+    // We exclude low-priority categories to focus on what matters.
+    // Schema Categories: NEEDS_RESPONSE, AWAITING_REPLY, FYI, MEETING_RELATED, AUTOMATED, OTHER
+    // "PROMOTION", "SOCIAL", "UPDATES" conceptually map to AUTOMATED, FYI
     const email = await prisma.email.findFirst({
         where: {
             userId: session.user.id,
             isArchived: false,
             NOT: {
                 category: {
-                    in: ['AUTOMATED', 'FYI'] // Adjusting based on user request "PROMOTION/SOCIAL" but schema uses specific enums.
-                    // Schema enums: NEEDS_RESPONSE, AWAITING_REPLY, FYI, MEETING_RELATED, AUTOMATED, OTHER
-                    // User asked for "NOT 'PROMOTION'/'SOCIAL'". 
-                    // Since our schema doesn't have PROMOTION/SOCIAL, I'll map based on what likely exists or strictly follow Schema.
-                    // Schema: NEEDS_RESPONSE, AWAITING_REPLY, OTHER are likely the focus.
-                    // I will filter out AUTOMATED and FYI, which maps to "Promotion/Social/Low Priority".
+                    in: ['AUTOMATED', 'FYI']
                 }
             }
         },
         orderBy: {
-            date: 'desc'
+            date: 'asc' // Oldest first (FIFO)
         },
         take: 1
     })
@@ -45,7 +43,7 @@ export default async function FocusPage() {
                         <h1 className="text-2xl font-bold text-gray-900">Focus Mode</h1>
                         <p className="text-gray-500 text-sm">Process your inbox one conversation at a time.</p>
                     </div>
-                    {/* If email exists, show category or some status. If not, hidden. FocusView handles internals. */}
+                    {/* Optional: Add a subtle indicator of how many are left */}
                 </div>
 
                 <FocusView email={email} />
